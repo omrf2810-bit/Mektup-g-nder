@@ -1,0 +1,18 @@
+{
+  "id": "./",
+  "name": "Mektup Gönder",
+  "short_name": "Mektup",
+  "description": "Mektubunu yaz, zarfını seç, e-posta olarak gönder.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#fbf4ec",
+  "theme_color": "#c8586c",
+  "lang": "tr",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
