@@ -126,6 +126,103 @@ ${f.title.trim() ? `<h2 style="margin:0 0 14px;font-size:22px">${esc(f.title.tri
   sendBtn.addEventListener('click', send);
   mailBtn.addEventListener('click', openMail);
 
+
+  /* ---- önizlemeyi görsel (PNG) ya da PDF olarak üret ve paylaş */
+  const SNAP_BG = '#fbf4ec';
+
+  /* html2canvas "clip-path" çizemez: zarfı (kapak üçgeni dahil) SVG olarak yeniden çiz */
+  function snapEnvelope(w) {
+    const el = envelopeEl(f.envelope, f.seal, { w });
+    const e = C.ENVELOPES.find((x) => x.id === f.envelope) || C.ENVELOPES[0];
+    const H = Math.round(w * 0.64), r = Math.round(w * 0.03);
+    const pat = el.style.getPropertyValue('--e-pattern');
+    let defs = '', fillFront = e.front, fillFlap = e.flap, overlay = '';
+    const m = /^url\("data:image\/svg\+xml,(.*)"\)$/.exec(pat);
+    if (m) {
+      try {
+        const tile = decodeURIComponent(m[1]);
+        const tw = Number(/width='(\d+)'/.exec(tile)[1]), th = Number(/height='(\d+)'/.exec(tile)[1]);
+        defs = `<pattern id='p' width='${tw}' height='${th}' patternUnits='userSpaceOnUse'><image href="data:image/svg+xml,${encodeURIComponent(tile)}" width='${tw}' height='${th}'/></pattern>`;
+        overlay = 'p';
+      } catch { /* desensiz çiz */ }
+    }
+    const tex = (pts) => overlay ? `<polygon points='${pts}' fill='url(#p)'/>` : '';
+    const frontPts = `0,0 ${w / 2},${H * 0.56} ${w},0 ${w},${H} 0,${H}`, flapPts = `0,0 ${w},0 ${w / 2},${H * 0.6 * 0.93}`;
+    const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='${w}' height='${H}' viewBox='0 0 ${w} ${H}'><defs>${defs}<clipPath id='c'><rect width='${w}' height='${H}' rx='${r}'/></clipPath></defs>
+<g clip-path='url(#c)'><rect width='${w}' height='${H}' fill='${e.back}'/><polygon points='${frontPts}' fill='${fillFront}'/>${tex(frontPts)}<polygon points='${flapPts}' fill='${fillFlap}'/>${tex(flapPts)}</g></svg>`;
+    el.querySelectorAll('.env-back,.env-front,.env-flap,.env-paper').forEach((n) => n.remove());
+    const img = h('img', { alt: '', src: 'data:image/svg+xml,' + encodeURIComponent(svg), style: `position:absolute;left:0;top:0;width:${w}px;height:${H}px;filter:drop-shadow(0 6px 10px rgba(0,0,0,.18))` });
+    el.prepend(img);
+    return el;
+  }
+  async function snapCanvas() {
+    if (!window.html2canvas) throw new Error('Görsel aracı yüklenemedi (internet?)');
+    const date = new Date().toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' });
+    const host = h('div', { 'aria-hidden': 'true', style: `position:fixed;left:-10000px;top:0;width:560px;padding:34px 30px 26px;background:${SNAP_BG};display:flex;flex-direction:column;align-items:center;gap:20px` },
+      snapEnvelope(250),
+      h('div', { style: 'width:100%' }, sheetEl({ title: f.title, body: f.body, paper: f.paper, date, from: f.from }, emojiMap())),
+      h('div', { style: 'font:12px Arial,sans-serif;color:#a58c8c' }, 'On İki Mektup ile gönderildi'));
+    document.body.append(host);
+    try {
+      try { await document.fonts?.ready; } catch { /* yoksay */ }
+      return await window.html2canvas(host, { scale: 2, backgroundColor: SNAP_BG, useCORS: true, logging: false });
+    } finally { host.remove(); }
+  }
+  const canvasBlob = (cv, type, q) => new Promise((res, rej) => cv.toBlob((b) => (b ? res(b) : rej(new Error('Görsel oluşturulamadı'))), type, q));
+  async function makePng() { return canvasBlob(await snapCanvas(), 'image/png'); }
+
+  /* tek sayfalık, sığ bir PDF: sayfa = mektup görseli (JPEG olarak gömülü) */
+  async function makePdf() {
+    const cv = await snapCanvas();
+    const jpg = new Uint8Array(await (await canvasBlob(cv, 'image/jpeg', 0.92)).arrayBuffer());
+    const W = Math.round(cv.width / 2), H = Math.round(cv.height / 2); // 1 px = 1 pt
+    const enc = new TextEncoder(), parts = []; let len = 0; const offs = [];
+    const put = (x) => { const b = typeof x === 'string' ? enc.encode(x) : x; parts.push(b); len += b.length; };
+    const obj = (n, body) => { offs[n] = len; put(`${n} 0 obj\n${body}\nendobj\n`); };
+    put('%PDF-1.4\n');
+    obj(1, '<< /Type /Catalog /Pages 2 0 R >>');
+    obj(2, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+    obj(3, `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${W} ${H}] /Resources << /XObject << /Im0 4 0 R >> >> /Contents 5 0 R >>`);
+    offs[4] = len; put(`4 0 obj\n<< /Type /XObject /Subtype /Image /Width ${cv.width} /Height ${cv.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${jpg.length} >>\nstream\n`); put(jpg); put('\nendstream\nendobj\n');
+    const content = `q ${W} 0 0 ${H} 0 0 cm /Im0 Do Q`;
+    obj(5, `<< /Length ${content.length} >>\nstream\n${content}\nendstream`);
+    const xref = len;
+    put(`xref\n0 6\n0000000000 65535 f \n${[1, 2, 3, 4, 5].map((n) => String(offs[n]).padStart(10, '0') + ' 00000 n \n').join('')}trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`);
+    return new Blob(parts, { type: 'application/pdf' });
+  }
+
+  function download(blob, name) {
+    const a = h('a', { href: URL.createObjectURL(blob), download: name });
+    document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  }
+  async function shareAs(kind, btn) {
+    err.textContent = '';
+    if (!f.body.trim()) { err.textContent = 'Önce mektubunu yaz.'; bodyIn.focus(); return; }
+    const old = btn.textContent; btn.disabled = true; btn.textContent = 'Hazırlanıyor…';
+    // pano, kullanıcı dokunuşu bitmeden kopyalanmalı
+    if (f.to.trim()) { try { await navigator.clipboard?.writeText(f.to.trim()); } catch { /* yoksay */ } }
+    try {
+      const pdf = kind === 'pdf';
+      const blob = pdf ? await makePdf() : await makePng();
+      const name = 'mektup' + (cleanTitle(f.title) ? '-' + cleanTitle(f.title).toLowerCase().replace(/[^a-z0-9çğıöşü]+/gi, '-').slice(0, 30).replace(/^-|-$/g, '') : '') + (pdf ? '.pdf' : '.png');
+      const file = new File([blob], name, { type: blob.type });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        try {
+          await navigator.share({ files: [file], title: subject(), text: plainEmail() });
+          toast(f.to.trim() ? 'Mail uygulamanı seç. Alıcı adresi panoya kopyalandı: alıcı kutusuna yapıştır.' : 'Mail uygulamanı seç; görsel ek olarak gelir.');
+        } catch (e) { if (e && e.name !== 'AbortError') throw e; }
+      } else {
+        download(blob, name);
+        toast('Dosya indirildi. Mail yazarken ek olarak ekle.');
+      }
+    } catch (e) { err.textContent = 'Görsel hazırlanamadı: ' + (e.message || e); }
+    finally { btn.disabled = false; btn.textContent = old; }
+  }
+  const pngBtn = h('button', { class: 'btn ghost', type: 'button' }, '🖼️ PNG olarak gönder');
+  const pdfBtn = h('button', { class: 'btn ghost', type: 'button' }, '📄 PDF olarak gönder');
+  pngBtn.addEventListener('click', () => shareAs('png', pngBtn));
+  pdfBtn.addEventListener('click', () => shareAs('pdf', pdfBtn));
+
   /* ---- ayarlar (EmailJS) */
   function openSettings() {
     const c = cfg();
@@ -153,10 +250,13 @@ ${f.title.trim() ? `<h2 style="margin:0 0 14px;font-size:22px">${esc(f.title.tri
           field('Kime (e-posta)', toIn), field('Senin adın', fromIn), field('Başlık', titleIn), field('Mektup', bodyIn), tray,
           h('div', { class: 'pickers' }, h('div', { class: 'label' }, 'Zarf'), envPicker, h('div', { class: 'label' }, 'Kâğıt'), paperPicker, h('div', { class: 'label' }, 'Mühür'), sealPicker),
           err, h('div', { class: 'btn-row' }, sendBtn, mailBtn),
+          h('div', { class: 'label', style: 'margin-top:14px' }, 'Önizlemeyi görsel olarak gönder'),
+          h('div', { class: 'btn-row' }, pngBtn, pdfBtn),
+          h('p', { class: 'preview-note' }, 'Zarf ve mektup, önizlemedeki gibi görsele dönüşür. Telefonda paylaşma menüsü açılır: Gmail\'i seç, görsel ek olarak eklenir. Bilgisayarda dosya inip kalır.'),
           h('p', { class: 'preview-note' }, 'Hiçbir şey sunucuda saklanmaz. Taslağın ve emojilerin yalnızca bu telefonda durur.')),
         h('div', { class: 'preview' }, h('div', { class: 'label', style: 'margin-bottom:8px;text-align:center' }, 'Önizleme'), previewBox))));
   drawTray(); drawPickers(); drawSend(); renderPreview();
-  window.GONDER = { subject, plainEmail, htmlEmail, mailtoUrl: () => `mailto:${encodeURIComponent(f.to.trim())}?subject=${encodeURIComponent(subject())}&body=${encodeURIComponent(plainEmail())}` };
+  window.GONDER = { makePng, makePdf, subject, plainEmail, htmlEmail, mailtoUrl: () => `mailto:${encodeURIComponent(f.to.trim())}?subject=${encodeURIComponent(subject())}&body=${encodeURIComponent(plainEmail())}` };
   const last = LS.get('gonder-son', null);
   if (last && !f.to) { f.to = last.to || ''; f.from = f.from || last.from || ''; toIn.value = f.to; fromIn.value = f.from; }
 })();

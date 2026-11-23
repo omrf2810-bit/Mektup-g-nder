@@ -33,3 +33,9 @@ E-posta senin Gmail adresinden gider. Ayarlar yalnızca o telefonun tarayıcıs�
 - Gönderim **hemen** olur; uygulama içinde "şu tarihte gönder" yok (sunucu olmadığı için). Zamanlamak için yol A'daki Gmail "Gönderimi zamanla"yı kullan.
 - Mektupların bir yerde saklanmaz; gönderdikten sonra uygulamada kayıt tutulmaz. Gönderdiklerin Gmail'de "Gönderilmiş" klasöründe durur.
 - Yol B EmailJS'in ücretsiz planına bağlıdır (aylık 200 e-posta, e-posta başına küçük boyut sınırı). Çok uzun mektuplar için yol A daha güvenlidir.
+
+## Önizlemeyi görsel (PNG) ya da PDF olarak gönderme
+- Mektubu yazdıktan sonra **🖼️ PNG olarak gönder** ya da **📄 PDF olarak gönder**'e bas.
+- Telefonda paylaşma menüsü açılır. **Gmail**'i seç: görsel ek olarak eklenir. Alıcı adresi panoya kopyalanır, alıcı kutusuna yapıştır.
+- Bilgisayarda dosya indirilir, mailine ek olarak ekle.
+- Bu yol EmailJS ücretsiz planıyla "📨 Gönder" düğmesinden yapılamaz, çünkü ücretsiz planda ek (attachment) yok.
