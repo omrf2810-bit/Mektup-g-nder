@@ -62,20 +62,41 @@
   };
 
   U.openModal = function (title, content) {
+    const prev = document.activeElement;
     const overlay = h('div', { class: 'overlay' });
-    const close = () => { overlay.remove(); if (!document.querySelector('.overlay')) document.body.classList.remove('noscroll'); };
+    let closed = false;
+    const close = () => {
+      if (closed) return; closed = true;
+      overlay.remove();
+      if (!document.querySelector('.overlay')) document.body.classList.remove('noscroll');
+      if (prev && prev.isConnected && typeof prev.focus === 'function') { try { prev.focus(); } catch { /* yoksay */ } }
+      if (typeof close.onclose === 'function') close.onclose();
+    };
+    overlay._close = close;
     overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
-    overlay.append(h('div', { class: 'modal', role: 'dialog', 'aria-modal': 'true', 'aria-label': title },
+    const modal = h('div', { class: 'modal', role: 'dialog', 'aria-modal': 'true', 'aria-label': title, tabindex: '-1' },
       h('div', { class: 'modal-head' }, h('h3', null, title), h('button', { class: 'iconbtn', type: 'button', 'aria-label': 'Kapat', onclick: close }, '✕')),
-      content));
+      content);
+    const focusables = () => [...overlay.querySelectorAll('a[href],button:not([disabled]),input:not([disabled]),textarea,select,[tabindex]:not([tabindex="-1"])')].filter((el) => el.offsetParent !== null || el === document.activeElement);
+    overlay.addEventListener('keydown', (e) => {          // Tab modal içinde döner
+      if (e.key !== 'Tab') return;
+      const f = focusables(); if (!f.length) return;
+      const first = f[0], last = f[f.length - 1];
+      if (e.shiftKey && (document.activeElement === first || document.activeElement === modal)) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    });
+    overlay.append(modal);
     document.body.append(overlay);
     document.body.classList.add('noscroll');
+    const inner = [...modal.querySelectorAll('input:not([disabled]),textarea,select,a[href],.btn,button:not(.iconbtn)')].find((el) => !el.closest('.modal-head'));
+    (inner || modal.querySelector('.iconbtn') || modal).focus({ preventScroll: true });
     return close;
   };
   document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
     const overlays = document.querySelectorAll('.overlay');
-    if (overlays.length) overlays[overlays.length - 1].remove();
+    const top = overlays[overlays.length - 1];
+    if (top) { if (top._close) top._close(); else top.remove(); }
     if (!document.querySelector('.overlay')) document.body.classList.remove('noscroll');
   });
 

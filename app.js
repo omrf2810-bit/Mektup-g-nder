@@ -3,16 +3,19 @@
 (function () {
   'use strict';
   const { h, field, toast, openModal, emojiSVG, envelopeEl, confetti, emojiMaker } = window.UI;
-  const C = window.CONFIG, X = window.EXTRA, EX = window.EXPORT;
+  const C = window.CONFIG, X = window.EXTRA, EX = window.EXPORT, G = window.GMAIL;
   const LS = {
     get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch { return d; } },
     set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* yoksay */ } }
   };
   const DRAFT = 'gonder-taslak', EMOJIS = 'gonder-emojis';
 
-  const f = Object.assign({ to: '', from: '', label: '', title: '', body: '', envelope: 'klasik', paper: 'krem', font: 'klasik', seal: C.SEALS[0], effect: 'kalp', showDate: true, date: '' }, LS.get(DRAFT, {}));
+  const f = Object.assign({ to: '', from: '', label: '', title: '', body: '', envelope: 'klasik', paper: 'krem', font: 'klasik', seal: C.SEALS[0], effect: 'kalp', showDate: true, date: '', photo: '' }, LS.get(DRAFT, {}));
+  try { f.photo = localStorage.getItem('gonder-foto') || ''; } catch { f.photo = ''; }
   let emojis = LS.get(EMOJIS, []);
-  const persist = () => LS.set(DRAFT, f);
+  const PHOTO = 'gonder-foto';
+  const persist = () => { LS.set(DRAFT, { ...f, photo: '' }); };
+  const persistPhoto = () => { try { if (f.photo) localStorage.setItem(PHOTO, f.photo); else localStorage.removeItem(PHOTO); return true; } catch { return false; } };
   const emojiMap = () => new Map(emojis.map((e) => [e.id, e]));
   const cleanTitle = (s) => String(s).replace(/\s+/g, ' ').trim();
   const fontDef = () => X.FONTS.find((x) => x.id === f.font) || X.FONTS[0];
@@ -47,6 +50,7 @@
       const fin = (v) => { if (!done) { done = true; close(); res(v); } };
       const close = openModal('Emin misin?', h('div', null, h('p', null, message),
         h('div', { class: 'btn-row' }, h('button', { class: 'btn', type: 'button', onclick: () => fin(true) }, okLabel || 'Evet'), h('button', { class: 'btn ghost', type: 'button', onclick: () => fin(false) }, 'Vazgeç'))));
+      close.onclose = () => fin(false);   // Esc ya da dışarı dokunma = vazgeç
     });
   }
 
@@ -59,17 +63,73 @@
   }
   async function newLetter() {
     if (f.body.trim() && !(await ask('Yazdığın mektup silinecek (zarf ve kâğıt seçimin kalır). Yeni mektup başlayalım mı?', 'Evet, yeni mektup'))) return;
-    f.title = ''; f.body = ''; f.date = ''; titleIn.value = ''; bodyIn.value = ''; dateIn.value = ''; persist(); renderPreview(); updCount(); bodyIn.focus();
+    f.title = ''; f.body = ''; f.date = ''; f.photo = ''; persistPhoto(); drawPhotoRow(); titleIn.value = ''; bodyIn.value = ''; dateIn.value = ''; persist(); renderPreview(); updCount(); bodyIn.focus();
   }
   function inspire() { insertText((f.body && !f.body.endsWith('\n') ? '\n\n' : '') + C.PROMPTS[Math.floor(Math.random() * C.PROMPTS.length)] + '\n\n'); }
+
+  /* ---- fotoğraf */
+  const photoInput = h('input', { type: 'file', accept: 'image/*', style: 'display:none', 'aria-label': 'Fotoğraf seç' });
+  const photoRow = h('div', { class: 'photo-row' });
+  function drawPhotoRow() {
+    photoRow.replaceChildren(...(f.photo ? [h('img', { src: f.photo, alt: 'Eklenen fotoğraf' }), h('button', { type: 'button', class: 'chip', onclick: () => { f.photo = ''; persistPhoto(); drawPhotoRow(); renderPreview(); } }, 'Fotoğrafı kaldır')] : []));
+    photoRow.style.display = f.photo ? '' : 'none';
+  }
+  async function loadBitmap(file) {
+    try { return await createImageBitmap(file, { imageOrientation: 'from-image' }); }
+    catch {
+      return new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error('Resim açılamadı')); i.src = URL.createObjectURL(file); });
+    }
+  }
+  async function addPhoto(file) {
+    if (!file) return;
+    try {
+      const bmp = await loadBitmap(file), w0 = bmp.width || bmp.naturalWidth, h0 = bmp.height || bmp.naturalHeight, sc = Math.min(1, 900 / Math.max(w0, h0));
+      const cv = document.createElement('canvas'); cv.width = Math.round(w0 * sc); cv.height = Math.round(h0 * sc);
+      const ctx = cv.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, cv.width, cv.height); ctx.drawImage(bmp, 0, 0, cv.width, cv.height);
+      f.photo = cv.toDataURL('image/jpeg', 0.82);
+      if (!persistPhoto()) toast('Fotoğraf bu cihazda saklanamadı ama mektupla gönderilir.');
+      drawPhotoRow(); renderPreview(); err.textContent = '';
+    } catch (e) { err.textContent = 'Fotoğraf eklenemedi: ' + (e.message || e); }
+    photoInput.value = '';
+  }
+  photoInput.addEventListener('change', () => addPhoto(photoInput.files[0]));
+
+  /* ---- takvim hatırlatması (.ics): zamanlı gönderim için sunucusuz tek yol */
+  const icsText = (t) => String(t).replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n');
+  const icsFold = (line) => { const enc = new TextEncoder(); let out = '', cur = ''; for (const ch of line) { if (enc.encode(cur + ch).length > 72) { out += cur + '\r\n '; cur = ch; } else cur += ch; } return out + cur; };
+  function buildIcs(whenLocal) {
+    const p2 = (n) => String(n).padStart(2, '0'), loc = (d) => `${d.getFullYear()}${p2(d.getMonth() + 1)}${p2(d.getDate())}T${p2(d.getHours())}${p2(d.getMinutes())}00`;
+    const start = new Date(whenLocal), end = new Date(start.getTime() + 15 * 60000), who = f.label.trim() || f.to.trim() || 'sevgilin';
+    const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Mektup Gonder//TR', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', 'BEGIN:VEVENT',
+      `UID:${Date.now()}-${Math.random().toString(36).slice(2, 8)}@mektup-gonder`, `DTSTAMP:${new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+/, '')}`,
+      `DTSTART:${loc(start)}`, `DTEND:${loc(end)}`, `SUMMARY:${icsText('💌 Mektubu gönder: ' + who)}`,
+      `DESCRIPTION:${icsText('Mektup uygulamasını aç, taslağın kayıtlı. ' + subject() + (f.to.trim() ? ' Alıcı: ' + f.to.trim() : ''))}`,
+      'BEGIN:VALARM', 'TRIGGER:PT0S', 'ACTION:DISPLAY', `DESCRIPTION:${icsText('Mektubu gönderme zamanı')}`, 'END:VALARM',
+      'BEGIN:VALARM', 'TRIGGER:-PT10M', 'ACTION:DISPLAY', `DESCRIPTION:${icsText('10 dakika sonra mektubu gönder')}`, 'END:VALARM', 'END:VEVENT', 'END:VCALENDAR'];
+    return lines.map(icsFold).join('\r\n') + '\r\n';
+  }
+  function openReminder() {
+    const t = new Date(Date.now() + 86400000); t.setHours(9, 0, 0, 0);
+    const pad2 = (n) => String(n).padStart(2, '0');
+    const inp = h('input', { type: 'datetime-local', id: 'when', value: `${t.getFullYear()}-${pad2(t.getMonth() + 1)}-${pad2(t.getDate())}T09:00` });
+    const msg = h('p', { class: 'error', role: 'alert' });
+    const close = openModal('Gönderme hatırlatması', h('div', { class: 'when' },
+      h('p', { class: 'muted' }, 'Mektup o gün kendiliğinden gitmez. Seçtiğin zamanda telefonun seni uyarır, sen de uygulamayı açıp gönderirsin. Taslağın bu telefonda kayıtlı kalır.'),
+      field('Ne zaman?', inp), msg,
+      h('button', { class: 'btn', type: 'button', onclick: () => {
+        if (!inp.value || isNaN(new Date(inp.value))) { msg.textContent = 'Bir tarih ve saat seç.'; return; }
+        download(new Blob([buildIcs(inp.value)], { type: 'text/calendar;charset=utf-8' }), 'mektup-hatirlatma.ics');
+        toast('İndirildi. Dosyaya dokununca takvimine eklenir.'); close();
+      } }, '📅 Takvim dosyasını indir')));
+  }
 
   /* ---- emoji tepsisi (sekmeli) */
   let tab = 'ask';
   const tabsBox = h('div', { class: 'tabs', role: 'tablist' });
-  const tray = h('div', { class: 'tray', role: 'group', 'aria-label': 'Emojiler' });
+  const tray = h('div', { class: 'tray', id: 'emoji-panel', role: 'tabpanel', 'aria-label': 'Emojiler' });
   function drawTray() {
     const all = [{ id: 'benim', name: '⭐ Benimkiler' }, ...X.EMOJI_CATS];
-    tabsBox.replaceChildren(...all.map((c) => h('button', { type: 'button', class: 'chip', role: 'tab', 'aria-pressed': String(tab === c.id), onclick: () => { tab = c.id; drawTray(); } }, c.name)));
+    tabsBox.replaceChildren(...all.map((c) => h('button', { type: 'button', class: 'chip', role: 'tab', 'aria-selected': String(tab === c.id), 'aria-controls': 'emoji-panel', 'aria-pressed': String(tab === c.id), onclick: () => { tab = c.id; drawTray(); } }, c.name)));
     const cat = X.EMOJI_CATS.find((c) => c.id === tab);
     tray.classList.toggle('wide', !!(cat && cat.wide));
     if (tab === 'benim') {
@@ -95,7 +155,7 @@
   const sealPicker = h('div', { class: 'picker seals', role: 'group', 'aria-label': 'Mühür' });
   const fxPicker = h('div', { class: 'picker effects', role: 'group', 'aria-label': 'Açılış efekti' });
   function drawPickers() {
-    const pick = (key, val) => () => { f[key] = val; persist(); drawPickers(); renderPreview(); };
+    const pick = (key, val) => () => { f[key] = val; persist(); drawPickers(); renderPreview(key === 'envelope' || key === 'seal'); };
     envPicker.replaceChildren(...C.ENVELOPES.map((e) => h('button', { type: 'button', 'aria-pressed': String(f.envelope === e.id), 'aria-label': e.name, onclick: pick('envelope', e.id) }, envelopeEl(e.id, f.seal, { w: 78 }), e.name)));
     paperPicker.replaceChildren(...X.PAPERS.map((p) => {
       const sw = h('span', { class: 'swatch', style: `background-color:${p.bg};color:${p.fg};${p.img ? `background-image:${p.img};` : ''}${p.size ? `background-size:${p.size};` : ''}` }, 'Aa');
@@ -111,8 +171,9 @@
 
   /* ---- önizleme */
   const previewBox = h('div', { class: 'stage', style: 'gap:14px' });
-  function renderPreview() {
+  function renderPreview(pop) {
     const env = envelopeEl(f.envelope, f.seal, { w: 230 });
+    if (pop) { env.classList.add('pop'); }
     if (f.label.trim()) env.append(h('div', { class: 'env-label', style: `color:var(--e-accent);font:700 calc(var(--w)*${0.078 * fontDef().fs}) ${fontDef().css}` }, f.label.trim()));
     const shown = { ...f, body: f.body || 'Mektubun burada görünecek…' };
     previewBox.replaceChildren(env, h('div', { class: 'lt-prev', style: 'width:100%' }, EX.letterEl(shown, emojiMap())));
@@ -166,6 +227,66 @@
       toast('Dosya indirildi. Mail yazarken ek olarak ekle.');
     }
   }
+  /* ---- gönderim yolu: paylaşma menüsü ya da Gmail taslağı */
+  let mode = LS.get('gonder-mode', 'share');
+  const modeBox = h('div', { class: 'toolrow', role: 'group', 'aria-label': 'Gönderim yolu' });
+  const modeNote = h('p', { class: 'dl-note' });
+  function drawMode() {
+    const chip = (id, label) => h('button', { type: 'button', class: 'chip', 'aria-pressed': String(mode === id), onclick: () => {
+      if (id === 'gmail' && !G.getClientId()) { openSettings(); return; }
+      mode = id; LS.set('gonder-mode', mode); if (id === 'gmail') G.preload().catch(() => {}); drawMode();
+    } }, label);
+    modeBox.replaceChildren(chip('share', '📤 Paylaşma menüsü'), chip('gmail', '📧 Gmail taslağı'));
+    modeNote.textContent = mode === 'gmail'
+      ? 'Dosya Gmail hesabında bir taslağa konur. Gmail\'i açıp Gönder\'e basarsın. GIF ve PNG mailin içinde görünür.'
+      : 'Telefonda paylaşma menüsü açılır: Gmail\'i seç, dosya ek olarak eklenir. Bilgisayarda dosya indirilir.';
+  }
+  function openSettings() {
+    const idIn = h('input', { type: 'text', id: 'gcid', autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false', placeholder: '123456789-abc….apps.googleusercontent.com' });
+    idIn.value = G.getClientId();
+    const msg = h('p', { class: 'error', role: 'alert' });
+    const origin = location.origin === 'null' ? '(adresini yaz)' : location.origin;
+    const steps = [
+      ['console.cloud.google.com', ' adresine gir, Google hesabınla giriş yap, üstten ', 'Yeni proje', ' oluştur (adı: Mektup).'],
+      ['API\'ler ve Hizmetler → Kitaplık', 'ndan ', 'Gmail API', '\'yi bul ve ', 'Etkinleştir', 'e bas.'],
+      ['OAuth izin ekranı (Google Auth Platform)', ': kullanıcı türü ', 'Harici', ', uygulama adı ve e-postanı yaz. ', 'Hedef kitle → Test kullanıcıları', 'na kendi Gmail adresini ekle. ', 'Veri erişimi', 'nde ', 'gmail.compose', ' iznini ekle.'],
+      ['İstemciler → İstemci oluştur → Web uygulaması', '. "Yetkili JavaScript kaynakları"na şunu yapıştır: ', origin, ' (yalnızca bu adres; sonunda / ve klasör adı olmasın).'],
+      ['Oluşan ', 'İstemci Kimliği', 'ni (…apps.googleusercontent.com) aşağıya yapıştır.']
+    ];
+    const list = h('ol', { style: 'padding-left:20px;margin:8px 0;line-height:1.5' }, ...steps.map((st) => h('li', null, ...st.map((t, i) => (i % 2 === 0 && st.length > 1 && !(st === steps[4]) ? h('b', null, t) : t)))));
+    const close = openModal('Gmail bağlantısı (bir kerelik kurulum)', h('div', null,
+      h('p', { class: 'muted' }, 'Mektubu Gmail\'inde ekli bir taslak olarak hazırlamak için Google\'da kendi (ücretsiz) istemci kimliğini oluşturursun. Uygulama yalnızca taslak oluşturma iznini ister; hiçbir şey sunucuya gitmez.'),
+      list,
+      h('p', { class: 'muted' }, 'İlk girişte "Google bu uygulamayı doğrulamadı" uyarısı çıkarsa Gelişmiş → devam et de. Kendi uygulaman olduğu için normaldir. Test modunda yaklaşık 7 günde bir yeniden giriş istenebilir.'),
+      field('İstemci Kimliği (Client ID)', idIn), msg,
+      h('div', { class: 'btn-row' },
+        h('button', { class: 'btn', type: 'button', onclick: () => {
+          const v = idIn.value.trim();
+          if (v && !G.looksValid(v)) { msg.textContent = 'Bu bir istemci kimliğine benzemiyor. "….apps.googleusercontent.com" ile biten metni yapıştır.'; return; }
+          G.setClientId(v);
+          if (v) { mode = 'gmail'; G.preload().catch(() => {}); } else mode = 'share';
+          LS.set('gonder-mode', mode); drawMode(); close(); toast(v ? 'Kaydedildi. Artık Gmail taslağı seçili.' : 'Gmail bağlantısı kaldırıldı.');
+        } }, 'Kaydet'),
+        G.getClientId() ? h('button', { class: 'btn ghost', type: 'button', onclick: () => { idIn.value = ''; } }, 'Kimliği sil') : null)));
+  }
+  const slugName = (ext) => fileName(ext);
+  function draftHtml(fm, name) {
+    const E = G.escHtml, who = E(f.from.trim() || 'Biri');
+    let inner = `<p style="font-size:18px;margin:0 0 12px">💌 <b>${who}</b> sana bir mektup gönderdi</p>`;
+    if (fm.id === 'gif' || fm.id === 'png') inner += '<img src="cid:mektup" alt="Mektup" style="max-width:100%;border-radius:12px">';
+    else if (fm.id === 'html') inner += `<p>Ekteki <b>${E(name)}</b> dosyasını tarayıcıda aç, zarf kendiliğinden açılır.</p>`;
+    else inner += `<p>Ekteki <b>${E(name)}</b> dosyasını aç.</p>`;
+    return `<div style="font-family:Georgia,serif;font-size:16px;color:#3b2a2a">${inner}</div>`;
+  }
+  async function gmailDraft(fm, blob, token) {
+    const name = slugName(fm.ext), bytes = new Uint8Array(await blob.arrayBuffer());
+    const mime = G.buildMime({ to: f.to.trim(), subject: subject(), text: plainEmail(), html: draftHtml(fm, name), att: { name, type: blob.type, bytes, inline: fm.id === 'gif' || fm.id === 'png' } });
+    const d = await G.createDraft(token, mime);
+    const url = G.draftUrl(d);
+    const close = openModal('Taslak Gmail\'e kaydedildi ✅', h('div', null,
+      h('p', null, `${name} eklenmiş bir taslak hazır${f.to.trim() ? ' (alıcı: ' + f.to.trim() + ')' : ''}. Gmail'i aç, Taslaklar'dan mektubu bul, Gönder'e bas.`),
+      h('div', { class: 'btn-row' }, h('a', { class: 'btn', href: url, target: '_blank', rel: 'noopener', onclick: () => setTimeout(close, 300) }, '📧 Gmail\'i aç'), h('button', { class: 'btn ghost', type: 'button', onclick: () => close() }, 'Kapat'))));
+  }
   const FORMATS = [
     { id: 'gif', ic: '🎬', t: 'Açılan zarf animasyonu (GIF)', s: 'Zarf açılır, mektup çıkar. Mailde kendiliğinden oynar, her telefonda çalışır.', tag: 'Önerilen', ext: 'gif', make: (p) => EX.makeGif(f, emojis, p) },
     { id: 'html', ic: '🌐', t: 'Açılan zarf (HTML dosyası)', s: 'Dokununca açılan, efektli sayfa. Alıcı dosyayı tarayıcıda açar.', ext: 'html', make: async () => new Blob([await EX.buildHtml(f, emojis)], { type: 'text/html' }) },
@@ -182,14 +303,21 @@
         if (hh > EX.GIF_MAX_H && !(await ask('Mektubun uzun: GIF\'te yalnızca ilk bölümü görünür. Tamamının görünmesi için HTML ya da PDF daha iyi. GIF yine de hazırlansın mı?', 'GIF yap'))) return;
       } catch { /* ölçülemedi, devam */ }
     }
+    let token = null;
+    if (mode === 'gmail') {
+      const cid = G.getClientId();
+      if (!cid) { openSettings(); return; }
+      try { token = await G.ensureToken(cid); }       // dokunuşun içinde: Google giriş penceresi
+      catch (e) { err.textContent = e.retry ? e.message : 'Google girişi tamamlanmadı: ' + (e.message || e); return; }
+    }
     const btn = fmtBtns.get(fm.id), small = btn.querySelector('small'), bar = btn.querySelector('.bar > i'), old = small.textContent;
     fmtBtns.forEach((b) => { b.disabled = true; });
     small.textContent = 'Hazırlanıyor…';
-    if (f.to.trim()) { try { await navigator.clipboard?.writeText(f.to.trim()); } catch { /* yoksay */ } }   // pano, dokunuş bitmeden
+    if (f.to.trim() && mode !== 'gmail') { try { await navigator.clipboard?.writeText(f.to.trim()); } catch { /* yoksay */ } }   // pano, dokunuş bitmeden
     try {
       const blob = await fm.make((p) => { bar.style.width = Math.round(p * 100) + '%'; small.textContent = 'Hazırlanıyor… %' + Math.round(p * 100); });
       LS.set('gonder-son', { to: f.to, from: f.from });
-      await deliver(blob, fileName(fm.ext));
+      if (mode === 'gmail') await gmailDraft(fm, blob, token); else await deliver(blob, fileName(fm.ext));
     } catch (e) { err.textContent = 'Hazırlanamadı: ' + (e.message || e); }
     finally { small.textContent = old; bar.style.width = '0'; fmtBtns.forEach((b) => { b.disabled = false; }); }
   }
@@ -214,13 +342,14 @@
   /* ---- sayfa */
   const root = document.getElementById('app');
   root.replaceChildren(
-    h('header', { class: 'topbar' }, h('span', { class: 'brand' }, h('span', null, '💌'), 'Mektup Gönder')),
+    h('header', { class: 'topbar' }, h('span', { class: 'brand' }, h('span', null, '💌'), 'Mektup Gönder'), h('span', { style: 'flex:1' }), h('button', { class: 'iconbtn', type: 'button', 'aria-label': 'Gmail bağlantısı', title: 'Gmail bağlantısı', onclick: openSettings }, '⚙️')),
     h('main', { class: 'container' },
       h('div', { class: 'write' },
         h('div', { class: 'card' },
           h('div', { class: 'sec-title' }, '1. Mektubunu yaz'),
           field('Kime (e-posta)', toIn, 'Sadece gönderirken adresi panoya kopyalamak için'), field('Senin adın', fromIn), field('Zarfın üstüne yazı', labelIn, 'Zarfın ön yüzünde görünür'), field('Başlık', titleIn), field('Tarih', dateIn, 'Örn. 1 Ocak 2027'), field('Mektup', bodyIn), counter,
-          h('div', { class: 'toolrow' }, h('button', { type: 'button', class: 'chip', onclick: pickTemplate }, '📜 Hazır şablon'), h('button', { type: 'button', class: 'chip', onclick: inspire }, '💡 İlham al'), h('button', { type: 'button', class: 'chip', onclick: newLetter }, '🗑️ Yeni mektup')),
+          h('div', { class: 'toolrow' }, h('button', { type: 'button', class: 'chip', onclick: pickTemplate }, '📜 Hazır şablon'), h('button', { type: 'button', class: 'chip', onclick: inspire }, '💡 İlham al'), h('button', { type: 'button', class: 'chip', onclick: () => photoInput.click() }, '📷 Fotoğraf ekle'), h('button', { type: 'button', class: 'chip', onclick: openReminder }, '📅 Takvime hatırlat'), h('button', { type: 'button', class: 'chip', onclick: newLetter }, '🗑️ Yeni mektup')),
+          photoInput, photoRow,
           tabsBox, tray,
           h('div', { class: 'sec-title' }, '2. Zarfı ve kâğıdı seç'),
           h('div', { class: 'pickers' },
@@ -228,13 +357,13 @@
             h('div', { class: 'label' }, 'Mühür'), sealPicker, h('div', { class: 'label' }, 'Zarf açılınca'), fxPicker),
           h('label', { class: 'toggle', for: 'showdate' }, dateToggle, 'Mektubun üstünde tarih görünsün'),
           h('div', { class: 'sec-title' }, '3. Nasıl göndereyim?'),
-          err, fmtList, mailBtn,
-          h('p', { class: 'dl-note' }, 'Telefonda paylaşma menüsü açılır: Gmail\'i seç, dosya ek olarak eklenir. Bilgisayarda dosya indirilir.'),
+          modeBox, modeNote, err, fmtList, mailBtn,
           h('p', { class: 'preview-note' }, 'Hiçbir şey sunucuda saklanmaz. Taslağın ve emojilerin yalnızca bu telefonda durur.'),
-          h('p', { class: 'preview-note', id: 'ver', style: 'text-align:center;opacity:.7' }, 'Sürüm: ' + X.VERSION + ' (GIF + HTML)')),
+          h('p', { class: 'preview-note', id: 'ver', style: 'text-align:center;opacity:.7' }, 'Sürüm: ' + X.VERSION)),
         h('div', { class: 'preview' }, h('div', { class: 'label', style: 'margin-bottom:8px;text-align:center' }, 'Önizleme'), previewBox, h('div', { style: 'margin-top:14px' }, playBtn)))));
-  drawTray(); drawPickers(); renderPreview(); updCount();
-  window.GONDER = { f, readyPanel, getEmojis: () => emojis, subject, plainEmail, mailtoUrl: () => mailtoUrl(plainEmail()) };
+  drawTray(); drawPickers(); drawMode(); drawPhotoRow(); renderPreview(); updCount();
+  if (mode === 'gmail' && G.getClientId()) G.preload().catch(() => {}); else if (mode === 'gmail') { mode = 'share'; drawMode(); }
+  window.GONDER = { f, readyPanel, buildIcs, addPhoto, getEmojis: () => emojis, subject, plainEmail, mailtoUrl: () => mailtoUrl(plainEmail()) };
   const last = LS.get('gonder-son', null);
   if (last && !f.to) { f.to = last.to || ''; f.from = f.from || last.from || ''; toIn.value = f.to; fromIn.value = f.from; renderPreview(); }
 })();

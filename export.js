@@ -23,6 +23,7 @@
     if (f.showDate !== false) el.append(h('div', { class: 'd' }, dateStr(f)));
     if (f.title.trim()) el.append(h('h2', null, f.title.trim()));
     el.append(h('div', { class: 'b' }, U.renderBody(f.body || '', map)));
+    if (f.photo) el.append(h('div', { class: 'ph' }, h('img', { src: f.photo, alt: 'Mektuba eklenmiş fotoğraf' })));
     if (f.from.trim()) el.append(h('div', { class: 'f' }, '— ' + f.from.trim()));
     return el;
   }
@@ -237,7 +238,13 @@ ${lt.outerHTML}
       const L = o.letter;
       ctx.save(); ctx.beginPath(); ctx.rect(0, -10000, 10000, 10000 + (o.clipBottom == null ? y + hh : o.clipBottom)); ctx.clip();
       ctx.shadowColor = 'rgba(0,0,0,.25)'; ctx.shadowBlur = 6 * P.S; ctx.shadowOffsetY = 1 * P.S;
-      ctx.drawImage(P.letter, 0, 0, P.letter.width, P.letter.height * P.crop, L.x, L.y, L.w, L.h); ctx.restore();
+      ctx.drawImage(P.letter, 0, 0, P.letter.width, P.letter.height * P.crop, L.x, L.y, L.w, L.h);
+      if (P.crop < 1) {                       // kırpılan mektubun alt kenarı yumuşakça solar
+        const fh = Math.min(70, L.h * 0.12), gr = ctx.createLinearGradient(0, L.y + L.h - fh, 0, L.y + L.h);
+        gr.addColorStop(0, P.p.bg + '00'); gr.addColorStop(1, P.p.bg);
+        ctx.shadowColor = 'transparent'; ctx.fillStyle = gr; ctx.fillRect(L.x, L.y + L.h - fh, L.w, fh);
+      }
+      ctx.restore();
     }
     // ön
     ctx.save(); ctx.globalAlpha = a; rr(ctx, x, y, w, hh, r); ctx.clip();
@@ -327,12 +334,17 @@ ${lt.outerHTML}
     const grow = 10; for (let i = 1; i <= grow; i++) frames.push({ k: { flap: -1, rise: 1, grow: i / grow, tau: (rise + i) / 22 }, delay: 60 });
     for (let i = 1; i <= 6; i++) frames.push({ k: { flap: -1, rise: 1, grow: 1, tau: (rise + grow + i) / 22 }, delay: 80 });
     frames.push({ k: { flap: -1, rise: 1, grow: 1, tau: 0 }, delay: 3800 });
+    /* ortak palet: birkaç temsilci kareden tek palet çıkar. Kareler arası renk titremesi biter. */
+    const rep = [0, 7, 13, 17, 22, frames.length - 8, frames.length - 1].filter((i, x, a) => i >= 0 && i < frames.length && a.indexOf(i) === x);
+    const sample = new Uint8ClampedArray(W * Hc * 4 * rep.length);
+    rep.forEach((i, x) => { drawFrame(ctx, P, W, Hc, frames[i].k, geo, parts); sample.set(ctx.getImageData(0, 0, W, Hc).data, x * W * Hc * 4); });
+    const palette = G.quantize(sample, 256);
+    await tick();
     const gif = G.GIFEncoder();
     for (let i = 0; i < frames.length; i++) {
       drawFrame(ctx, P, W, Hc, frames[i].k, geo, parts);
       const { data } = ctx.getImageData(0, 0, W, Hc);
-      const palette = G.quantize(data, 256);
-      gif.writeFrame(G.applyPalette(data, palette), W, Hc, { palette, delay: frames[i].delay, repeat: 0 });
+      gif.writeFrame(G.applyPalette(data, palette), W, Hc, i === 0 ? { palette, delay: frames[i].delay, repeat: 0 } : { delay: frames[i].delay });
       if (onProgress) onProgress((i + 1) / frames.length);
       await tick();
     }

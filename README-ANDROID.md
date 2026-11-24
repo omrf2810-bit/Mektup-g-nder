@@ -23,6 +23,14 @@ Uygulamanın en altında dört biçim var. Telefonda paylaşma menüsü açılı
 
 Önizlemenin altındaki **▶ Zarf açılışını izle** düğmesi, HTML'in alıcıda nasıl görüneceğini gösterir.
 
+## Gmail taslağı (isteğe bağlı, tek dokunuşa en yakın yol)
+Sağ üstteki ⚙️ ile bir kerelik kurulum yaparsan (kendi ücretsiz Google istemci kimliğin) GIF/HTML/PDF/PNG doğrudan Gmail hesabında **ekli taslak** olarak hazırlanır; GIF ve PNG mailin içinde görünür. Gmail'i açıp Gönder'e basarsın. Kurulum adımları ⚙️ penceresinde yazılı. Kurmazsan paylaşma menüsü yolu çalışmaya devam eder.
+
+## Fotoğraf, takvim, tarih
+- **📷 Fotoğraf ekle:** mektubun altına polaroid gibi yerleşir, GIF/HTML/PDF/PNG'nin hepsinde görünür.
+- **📅 Takvime hatırlat:** seçtiğin zamanda telefonun seni uyarır (uygulama kendiliğinden göndermez).
+- **Tarih:** mektubun üstüne istediğin tarihi yazabilirsin.
+
 ## Çevrimdışı
 Bir kez açtıktan sonra internet olmadan da açılır ve dosya hazırlayabilirsin. Yeni sürüm yüklenince internet varken otomatik güncellenir. Sayfanın en altındaki **Sürüm** satırı hangi sürümde olduğunu gösterir.
 

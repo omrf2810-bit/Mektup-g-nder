@@ -3,7 +3,7 @@
 (function () {
   'use strict';
   const C = window.CONFIG;
-  const VERSION = '202611241254';
+  const VERSION = '202611241945';
 
   /* ---- zarflar: mevcut 9 + yenileri */
   C.ENVELOPES.push(
@@ -93,6 +93,8 @@
 .lt h2{font-family:var(--ff);font-weight:700;font-size:1.3em;line-height:1.3;margin:0 0 12px;color:var(--hd)}
 .lt .b{white-space:pre-wrap}
 .lt .f{text-align:right;margin-top:16px;font-size:1.1em}
+.lt .ph{margin:16px 0 0;background:#fff;padding:8px 8px 24px;border-radius:4px;box-shadow:0 2px 9px rgba(0,0,0,.18);transform:rotate(-1.2deg)}
+.lt .ph img{display:block;width:100%;height:auto;border-radius:2px}
 .lt .sticker{display:inline-block;width:1.45em;height:1.45em;vertical-align:-.32em}
 .lt .sticker svg{width:100%;height:100%;display:block}
 `;
