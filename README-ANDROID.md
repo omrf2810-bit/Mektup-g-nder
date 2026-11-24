@@ -23,8 +23,11 @@ Uygulamanın en altında dört biçim var. Telefonda paylaşma menüsü açılı
 
 Önizlemenin altındaki **▶ Zarf açılışını izle** düğmesi, HTML'in alıcıda nasıl görüneceğini gösterir.
 
+## Çevrimdışı
+Bir kez açtıktan sonra internet olmadan da açılır ve dosya hazırlayabilirsin. Yeni sürüm yüklenince internet varken otomatik güncellenir. Sayfanın en altındaki **Sürüm** satırı hangi sürümde olduğunu gösterir.
+
 ## Zamanlı gönderim
 Uygulama zamanlama yapmaz. Gmail'de gönder düğmesinin yanındaki ⋮ → **Gönderimi zamanla** ile mailin gideceği günü seçebilirsin.
 
 ## İçerik
-22 zarf, 13 kâğıt, 4 yazı tipi, 24 mühür, 7 açılış efekti (kalp, konfeti, yıldız, çiçek, kelebek, kar), 130'dan fazla emoji ve ayraç, kendi emojini yapma, 10 hazır mektup şablonu, ilham soruları.
+22 zarf, 13 kâğıt, 4 yazı tipi, 24 mühür, 7 açılış efekti (kalp, konfeti, yıldız, çiçek, kelebek, kar), 130'dan fazla emoji ve ayraç, kendi emojini yapma, 10 hazır mektup şablonu, ilham soruları, istediğin tarihi yazabilme.

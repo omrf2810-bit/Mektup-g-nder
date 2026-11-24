@@ -10,7 +10,7 @@
   };
   const DRAFT = 'gonder-taslak', EMOJIS = 'gonder-emojis';
 
-  const f = Object.assign({ to: '', from: '', label: '', title: '', body: '', envelope: 'klasik', paper: 'krem', font: 'klasik', seal: C.SEALS[0], effect: 'kalp', showDate: true }, LS.get(DRAFT, {}));
+  const f = Object.assign({ to: '', from: '', label: '', title: '', body: '', envelope: 'klasik', paper: 'krem', font: 'klasik', seal: C.SEALS[0], effect: 'kalp', showDate: true, date: '' }, LS.get(DRAFT, {}));
   let emojis = LS.get(EMOJIS, []);
   const persist = () => LS.set(DRAFT, f);
   const emojiMap = () => new Map(emojis.map((e) => [e.id, e]));
@@ -25,18 +25,21 @@
 
   /* ---- alanlar */
   const err = h('p', { class: 'error', role: 'alert' });
-  const bind = (el, key) => { el.value = f[key]; el.addEventListener('input', () => { f[key] = el.value; persist(); renderPreview(); err.textContent = ''; }); return el; };
+  const counter = h('p', { class: 'hint', style: 'text-align:right;margin:2px 0 0' });
+  const updCount = () => { counter.textContent = `${f.body.length} / ${C.LIMITS.body}`; };
+  const bind = (el, key) => { el.value = f[key]; el.addEventListener('input', () => { f[key] = el.value; persist(); renderPreview(); updCount(); err.textContent = ''; }); return el; };
   const toIn = bind(h('input', { id: 'to', type: 'email', inputmode: 'email', autocomplete: 'email', placeholder: 'safiye@ornek.com' }), 'to');
   const fromIn = bind(h('input', { id: 'from', type: 'text', maxlength: '60', placeholder: 'Ömer' }), 'from');
   const labelIn = bind(h('input', { id: 'label', type: 'text', maxlength: '28', placeholder: 'Örn. Safiye\'ye' }), 'label');
   const titleIn = bind(h('input', { id: 'title', type: 'text', maxlength: String(C.LIMITS.title), placeholder: 'Örn. Yeni yıl sözü' }), 'title');
+  const dateIn = bind(h('input', { id: 'date', type: 'text', maxlength: '40', placeholder: 'Boş bırakırsan bugünün tarihi' }), 'date');
   const bodyIn = bind(h('textarea', { id: 'body', maxlength: String(C.LIMITS.body), placeholder: 'Canım…' }), 'body');
 
   function insertText(t) {
     const s = bodyIn.selectionStart ?? bodyIn.value.length, e = bodyIn.selectionEnd ?? s;
     bodyIn.value = bodyIn.value.slice(0, s) + t + bodyIn.value.slice(e);
     bodyIn.selectionStart = bodyIn.selectionEnd = s + t.length;
-    f.body = bodyIn.value; persist(); renderPreview(); err.textContent = ''; bodyIn.focus();
+    f.body = bodyIn.value; persist(); renderPreview(); updCount(); err.textContent = ''; bodyIn.focus();
   }
   function ask(message, okLabel) {
     return new Promise((res) => {
@@ -51,8 +54,12 @@
   async function pickTemplate() {
     const close = openModal('Hazır mektup şablonları', h('div', { class: 'tmpl' }, ...X.TEMPLATES.map((t) => h('button', { type: 'button', onclick: async () => {
       if (f.body.trim() && !(await ask('Yazdığın mektubun yerine bu şablon gelecek. Devam edelim mi?', 'Şablonu kullan'))) return;
-      f.title = t.title; f.body = t.body; titleIn.value = f.title; bodyIn.value = f.body; persist(); renderPreview(); close(); toast('Şablon eklendi. Kendi sözlerinle değiştir.');
+      f.title = t.title; f.body = t.body; titleIn.value = f.title; bodyIn.value = f.body; persist(); renderPreview(); updCount(); close(); toast('Şablon eklendi. Kendi sözlerinle değiştir.');
     } }, h('b', null, t.name), h('small', null, t.body.replace(/\n+/g, ' '))))));
+  }
+  async function newLetter() {
+    if (f.body.trim() && !(await ask('Yazdığın mektup silinecek (zarf ve kâğıt seçimin kalır). Yeni mektup başlayalım mı?', 'Evet, yeni mektup'))) return;
+    f.title = ''; f.body = ''; f.date = ''; titleIn.value = ''; bodyIn.value = ''; dateIn.value = ''; persist(); renderPreview(); updCount(); bodyIn.focus();
   }
   function inspire() { insertText((f.body && !f.body.endsWith('\n') ? '\n\n' : '') + C.PROMPTS[Math.floor(Math.random() * C.PROMPTS.length)] + '\n\n'); }
 
@@ -129,13 +136,31 @@
     const a = h('a', { href: URL.createObjectURL(blob), download: name });
     document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
   }
+  const canShareFile = (file) => !!(navigator.canShare && navigator.share && navigator.canShare({ files: [file] }));
+  async function shareFile(file) {
+    await navigator.share({ files: [file], title: subject(), text: plainEmail() });
+    toast(f.to.trim() ? 'Mail uygulamanı seç. Alıcı adresi panoya kopyalandı: alıcı kutusuna yapıştır.' : 'Mail uygulamanı seç; dosya ek olarak gelir.');
+  }
+  /* Tarayıcılar paylaşma menüsünü yalnızca dokunuştan hemen sonra açar. Dosya hazırlanırken süre dolarsa
+     (uzun mektup, yavaş telefon) "Dosya hazır" paneli açılır: tek dokunuşla paylaş ya da indir. */
+  function readyPanel(blob, name) {
+    const file = new File([blob], name, { type: blob.type });
+    const kb = Math.max(1, Math.round(blob.size / 1024));
+    const body = h('div', null, h('p', null, `${name} hazır (${kb >= 1024 ? (kb / 1024).toFixed(1) + ' MB' : kb + ' KB'}).`),
+      h('div', { class: 'btn-row' },
+        canShareFile(file) ? h('button', { class: 'btn', type: 'button', onclick: async () => { try { await shareFile(file); close(); } catch (e) { if (e && e.name !== 'AbortError') toast('Paylaşılamadı, dosyayı indir.'); } } }, '📤 Paylaş') : null,
+        h('button', { class: 'btn ghost', type: 'button', onclick: () => { download(blob, name); toast('Dosya indirildi. Mail yazarken ek olarak ekle.'); } }, '⬇️ İndir')));
+    const close = openModal('Dosya hazır', body);
+  }
   async function deliver(blob, name) {
     const file = new File([blob], name, { type: blob.type });
-    if (navigator.canShare && navigator.canShare({ files: [file] })) {
-      try {
-        await navigator.share({ files: [file], title: subject(), text: plainEmail() });
-        toast(f.to.trim() ? 'Mail uygulamanı seç. Alıcı adresi panoya kopyalandı: alıcı kutusuna yapıştır.' : 'Mail uygulamanı seç; dosya ek olarak gelir.');
-      } catch (e) { if (e && e.name !== 'AbortError') throw e; }
+    if (canShareFile(file)) {
+      try { await shareFile(file); }
+      catch (e) {
+        if (e && e.name === 'AbortError') return;
+        if (e && e.name === 'NotAllowedError') return readyPanel(blob, name);   // dokunuş süresi doldu
+        throw e;
+      }
     } else {
       download(blob, name);
       toast('Dosya indirildi. Mail yazarken ek olarak ekle.');
@@ -151,6 +176,12 @@
   async function run(fm) {
     err.textContent = '';
     if (!f.body.trim()) { err.textContent = 'Önce mektubunu yaz.'; bodyIn.focus(); return; }
+    if (fm.id === 'gif') {
+      try {
+        const hh = await EX.measure(f, emojis);
+        if (hh > EX.GIF_MAX_H && !(await ask('Mektubun uzun: GIF\'te yalnızca ilk bölümü görünür. Tamamının görünmesi için HTML ya da PDF daha iyi. GIF yine de hazırlansın mı?', 'GIF yap'))) return;
+      } catch { /* ölçülemedi, devam */ }
+    }
     const btn = fmtBtns.get(fm.id), small = btn.querySelector('small'), bar = btn.querySelector('.bar > i'), old = small.textContent;
     fmtBtns.forEach((b) => { b.disabled = true; });
     small.textContent = 'Hazırlanıyor…';
@@ -188,8 +219,8 @@
       h('div', { class: 'write' },
         h('div', { class: 'card' },
           h('div', { class: 'sec-title' }, '1. Mektubunu yaz'),
-          field('Kime (e-posta)', toIn, 'Sadece gönderirken adresi panoya kopyalamak için'), field('Senin adın', fromIn), field('Zarfın üstüne yazı', labelIn, 'Zarfın ön yüzünde görünür'), field('Başlık', titleIn), field('Mektup', bodyIn),
-          h('div', { class: 'toolrow' }, h('button', { type: 'button', class: 'chip', onclick: pickTemplate }, '📜 Hazır şablon'), h('button', { type: 'button', class: 'chip', onclick: inspire }, '💡 İlham al')),
+          field('Kime (e-posta)', toIn, 'Sadece gönderirken adresi panoya kopyalamak için'), field('Senin adın', fromIn), field('Zarfın üstüne yazı', labelIn, 'Zarfın ön yüzünde görünür'), field('Başlık', titleIn), field('Tarih', dateIn, 'Örn. 1 Ocak 2027'), field('Mektup', bodyIn), counter,
+          h('div', { class: 'toolrow' }, h('button', { type: 'button', class: 'chip', onclick: pickTemplate }, '📜 Hazır şablon'), h('button', { type: 'button', class: 'chip', onclick: inspire }, '💡 İlham al'), h('button', { type: 'button', class: 'chip', onclick: newLetter }, '🗑️ Yeni mektup')),
           tabsBox, tray,
           h('div', { class: 'sec-title' }, '2. Zarfı ve kâğıdı seç'),
           h('div', { class: 'pickers' },
@@ -202,8 +233,8 @@
           h('p', { class: 'preview-note' }, 'Hiçbir şey sunucuda saklanmaz. Taslağın ve emojilerin yalnızca bu telefonda durur.'),
           h('p', { class: 'preview-note', id: 'ver', style: 'text-align:center;opacity:.7' }, 'Sürüm: ' + X.VERSION + ' (GIF + HTML)')),
         h('div', { class: 'preview' }, h('div', { class: 'label', style: 'margin-bottom:8px;text-align:center' }, 'Önizleme'), previewBox, h('div', { style: 'margin-top:14px' }, playBtn)))));
-  drawTray(); drawPickers(); renderPreview();
-  window.GONDER = { f, getEmojis: () => emojis, subject, plainEmail, mailtoUrl: () => mailtoUrl(plainEmail()) };
+  drawTray(); drawPickers(); renderPreview(); updCount();
+  window.GONDER = { f, readyPanel, getEmojis: () => emojis, subject, plainEmail, mailtoUrl: () => mailtoUrl(plainEmail()) };
   const last = LS.get('gonder-son', null);
   if (last && !f.to) { f.to = last.to || ''; f.from = f.from || last.from || ''; toIn.value = f.to; fromIn.value = f.from; renderPreview(); }
 })();

@@ -12,7 +12,7 @@
   const paperDef = (id) => X.PAPERS.find((p) => p.id === id) || X.PAPERS[0];
   const fontDef = (id) => X.FONTS.find((f) => f.id === id) || X.FONTS[0];
   const effectDef = (id) => X.EFFECTS.find((f) => f.id === id) || X.EFFECTS[0];
-  const dateStr = () => new Date().toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' });
+  const dateStr = (f) => (f && f.date && f.date.trim()) || new Date().toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' });
   const escHtml = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const tick = () => new Promise((r) => setTimeout(r, 0));
   const emojiMapOf = (emojis) => new Map((emojis || []).map((e) => [e.id, e]));
@@ -20,7 +20,7 @@
   /* ------------------------------------------------------------ mektup kâğıdı (DOM) */
   function letterEl(f, map) {
     const el = h('article', { class: 'lt', 'data-p': f.paper, 'data-ff': f.font || 'klasik' });
-    if (f.showDate !== false) el.append(h('div', { class: 'd' }, dateStr()));
+    if (f.showDate !== false) el.append(h('div', { class: 'd' }, dateStr(f)));
     if (f.title.trim()) el.append(h('h2', null, f.title.trim()));
     el.append(h('div', { class: 'b' }, U.renderBody(f.body || '', map)));
     if (f.from.trim()) el.append(h('div', { class: 'f' }, '— ' + f.from.trim()));
@@ -33,15 +33,25 @@
     try { await document.fonts.ready; } catch { /* yoksay */ }
   }
 
-  async function captureLetter(f, map, S) {
+  const MAX_CANVAS = 15000;   // piksel: telefon tarayıcıları bundan büyük tuvali sessizce boş bırakabilir
+  async function withLetter(f, map, fn) {
     if (!window.html2canvas) throw new Error('Görsel aracı yüklenemedi');
     await loadFonts(f);
     const el = letterEl(f, map);
     el.style.width = '420px'; el.style.boxShadow = 'none';
     const host = h('div', { 'aria-hidden': 'true', style: 'position:fixed;left:-10000px;top:0;width:420px' }, el);
     document.body.append(host);
-    try { return await window.html2canvas(el, { scale: S, backgroundColor: null, useCORS: true, logging: false }); }
-    finally { host.remove(); }
+    try { return await fn(el); } finally { host.remove(); }
+  }
+  /* mektubun 420 px genişlikteki yüksekliği (css px) */
+  const measure = (f, emojis) => withLetter(f, emojiMapOf(emojis), async (el) => el.offsetHeight);
+  async function captureLetter(f, map, S) {
+    return withLetter(f, map, async (el) => {
+      const hh = el.offsetHeight, eff = Math.max(1, Math.min(S, Math.floor(MAX_CANVAS / Math.max(hh, 1))));
+      if (hh > MAX_CANVAS) throw new Error('Mektup çok uzun, resim olarak hazırlanamıyor. HTML dosyasını dene.');
+      const cv = await window.html2canvas(el, { scale: eff, backgroundColor: null, useCORS: true, logging: false });
+      cv.effS = eff; return cv;
+    });
   }
 
   /* ------------------------------------------------------------ zarf (SVG, HTML için) */
@@ -86,6 +96,7 @@ body{font-family:system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;back
 .hint small{display:block;font:500 14px system-ui,sans-serif;color:#9a7c80;margin-top:6px;animation:pulse 1.6s ease-in-out infinite}
 @keyframes pulse{50%{opacity:.35}}
 .scene{all:unset;display:block;width:var(--w);height:calc(var(--w)*.64 + 80px);position:relative;cursor:pointer;margin-top:36px;transition:opacity .9s,transform .9s,height .9s .1s,margin .9s;-webkit-tap-highlight-color:transparent}
+.scene:focus-visible .env{outline:3px solid #c8586c;outline-offset:6px;border-radius:12px}
 .env{position:absolute;left:0;right:0;top:80px;height:calc(var(--w)*.64);perspective:900px}
 .env>*{position:absolute}
 .scene:not(.go) .env{animation:wig 2.8s ease-in-out infinite}
@@ -166,7 +177,7 @@ window.__open=open;
     const pp = `background-color:${p.bg};${p.img ? `background-image:${p.img};` : ''}${p.size ? `background-size:${p.size};` : ''}`;
     const labelFont = `${700} calc(var(--w)*${0.078 * fnt.fs}) ${fnt.css}`;
     return `<!doctype html>
-<html lang="tr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<html lang="tr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="color-scheme" content="light">
 <title>${escHtml(title || (from ? from + ' sana bir mektup gönderdi' : 'Sana bir mektup var'))}</title>
 <style>${fontCss}${X.letterCSS()}${SCENE_CSS}</style></head>
 <body><main class="wrap" id="wrap">
@@ -185,13 +196,14 @@ ${lt.outerHTML}
 
   async function prepare(f, emojis, S) {
     const e = envDef(f.envelope), fnt = fontDef(f.font), ef = effectDef(f.effect), t = tileInfo(e);
+    const letter = await captureLetter(f, emojiMapOf(emojis), S);
+    S = letter.effS;
     let pat = null;
     if (t) {
       const svg = t.svg.replace(/<svg ([^>]*?)width='(\d+)' height='(\d+)'>/, (m, a, w, hh) => `<svg ${a}width='${w * S}' height='${hh * S}' viewBox='0 0 ${w} ${hh}'>`);
       pat = { img: await loadImg('data:image/svg+xml,' + encodeURIComponent(svg)), S };
     }
-    const letter = await captureLetter(f, emojiMapOf(emojis), S);
-    return { f, e, fnt, ef, pat, letter, S, p: paperDef(f.paper) };
+    return { f, e, fnt, ef, pat, letter, S, crop: 1, p: paperDef(f.paper) };
   }
 
   function rr(ctx, x, y, w, hh, r) {
@@ -225,7 +237,7 @@ ${lt.outerHTML}
       const L = o.letter;
       ctx.save(); ctx.beginPath(); ctx.rect(0, -10000, 10000, 10000 + (o.clipBottom == null ? y + hh : o.clipBottom)); ctx.clip();
       ctx.shadowColor = 'rgba(0,0,0,.25)'; ctx.shadowBlur = 6 * P.S; ctx.shadowOffsetY = 1 * P.S;
-      ctx.drawImage(P.letter, L.x, L.y, L.w, L.h); ctx.restore();
+      ctx.drawImage(P.letter, 0, 0, P.letter.width, P.letter.height * P.crop, L.x, L.y, L.w, L.h); ctx.restore();
     }
     // ön
     ctx.save(); ctx.globalAlpha = a; rr(ctx, x, y, w, hh, r); ctx.clip();
@@ -291,18 +303,20 @@ ${lt.outerHTML}
     ctx.restore();
   }
 
-  function geometry(P, Wcss) {
-    const Lw = Wcss - 60, Lh = Math.round(P.letter.height / P.S * (Lw / (P.letter.width / P.S)));
-    return { Lw, Lh, fx: 30, fy: 30, envTop: 190 };
+  function geometry(P, Wcss, maxH) {
+    const Lw = Wcss - 60, full = Math.round(P.letter.height / P.S * (Lw / (P.letter.width / P.S)));
+    const Lh = maxH ? Math.min(full, maxH) : full;
+    P.crop = Lh / full;
+    return { Lw, Lh, full, fx: 30, fy: 30, envTop: 190 };
   }
   const canvasOf = (W, H, S) => { const c = document.createElement('canvas'); c.width = Math.round(W * S); c.height = Math.round(H * S); return c; };
   const toBlob = (cv, type, q) => new Promise((res, rej) => cv.toBlob((b) => (b ? res(b) : rej(new Error('Görsel oluşturulamadı'))), type, q));
 
   /* ------------------------------------------------------------ GIF */
+  const GIF_MAX_H = 1700;   // bundan uzun mektubun GIF'te yalnız baş kısmı görünür (dosya boyutu ve hız için)
   async function makeGif(f, emojis, onProgress) {
     const G = window.gifenc; if (!G) throw new Error('GIF aracı yüklenemedi');
-    const S = 1, W = 480;
-    const P = await prepare(f, emojis, S), geo = geometry(P, W);
+    const W = 480, P = await prepare(f, emojis, 1), S = P.S, geo = geometry(P, W, GIF_MAX_H);
     const Hc = Math.max(560, geo.Lh + 60), cv = canvasOf(W, Hc, S), ctx = cv.getContext('2d', { willReadFrequently: true });
     const parts = makeParticles(P, 34);
     const frames = [];       // { k, delay }
@@ -328,7 +342,7 @@ ${lt.outerHTML}
 
   /* ------------------------------------------------------------ PNG: zarf üstte, mektup altta */
   async function makePng(f, emojis) {
-    const S = 2, W = 480, P = await prepare(f, emojis, S), geo = geometry(P, W);
+    const W = 480, P = await prepare(f, emojis, 2), S = P.S, geo = geometry(P, W);
     const eh = 300 * HR, Hc = 30 + eh + 26 + geo.Lh + 40, cv = canvasOf(W, Hc, S), ctx = cv.getContext('2d');
     ctx.save(); ctx.scale(S, S); ctx.fillStyle = BG; ctx.fillRect(0, 0, W, Hc);
     drawEnvelope(ctx, P, (W - 300) / 2, 30, 300, { flap: 1, alpha: 1 });
@@ -343,7 +357,7 @@ ${lt.outerHTML}
     ctx.fillStyle = '#a58c8c'; ctx.font = '14px system-ui, Arial, sans-serif'; ctx.fillText(small, W / 2, Hc - 36); ctx.restore();
   }
   async function makePdf(f, emojis) {
-    const S = 2, W = 480, P = await prepare(f, emojis, S), geo = geometry(P, W), parts = makeParticles(P, 34);
+    const W = 480, P = await prepare(f, emojis, 2), S = P.S, geo = geometry(P, W), parts = makeParticles(P, 34);
     const from = f.from.trim() || 'Biri';
     const pages = [];
     const page = async (Hc, k, cap, small) => {
@@ -378,5 +392,5 @@ ${lt.outerHTML}
     return new Blob(parts, { type: 'application/pdf' });
   }
 
-  window.EXPORT = { buildHtml, makeGif, makePdf, makePng, letterEl, drawFrame, prepare };
+  window.EXPORT = { measure, GIF_MAX_H, buildHtml, makeGif, makePdf, makePng, letterEl, drawFrame, prepare };
 })();

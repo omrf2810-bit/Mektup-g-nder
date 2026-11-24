@@ -37,3 +37,8 @@
 .lt-prev { margin-top: 14px; }
 .lt-prev .lt { box-shadow: 0 6px 22px rgba(60, 30, 30, .14); }
 .dl-note { font-size: .8rem; color: var(--muted); margin: 8px 0 0; }
+
+/* yatay taşmayı önle: ızgara çocukları içerik genişliğine açılmasın */
+.write, .write > *, .card { min-width: 0; max-width: 100%; }
+.picker, .tabs, .tray { max-width: 100%; }
+html, body { overflow-x: hidden; }
