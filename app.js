@@ -199,7 +199,8 @@
           h('div', { class: 'sec-title' }, '3. Nasıl göndereyim?'),
           err, fmtList, mailBtn,
           h('p', { class: 'dl-note' }, 'Telefonda paylaşma menüsü açılır: Gmail\'i seç, dosya ek olarak eklenir. Bilgisayarda dosya indirilir.'),
-          h('p', { class: 'preview-note' }, 'Hiçbir şey sunucuda saklanmaz. Taslağın ve emojilerin yalnızca bu telefonda durur.')),
+          h('p', { class: 'preview-note' }, 'Hiçbir şey sunucuda saklanmaz. Taslağın ve emojilerin yalnızca bu telefonda durur.'),
+          h('p', { class: 'preview-note', id: 'ver', style: 'text-align:center;opacity:.7' }, 'Sürüm: ' + X.VERSION + ' (GIF + HTML)')),
         h('div', { class: 'preview' }, h('div', { class: 'label', style: 'margin-bottom:8px;text-align:center' }, 'Önizleme'), previewBox, h('div', { style: 'margin-top:14px' }, playBtn)))));
   drawTray(); drawPickers(); renderPreview();
   window.GONDER = { f, getEmojis: () => emojis, subject, plainEmail, mailtoUrl: () => mailtoUrl(plainEmail()) };

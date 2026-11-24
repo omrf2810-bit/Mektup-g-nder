@@ -3,6 +3,7 @@
 (function () {
   'use strict';
   const C = window.CONFIG;
+  const VERSION = '202611240447';
 
   /* ---- zarflar: mevcut 9 + yenileri */
   C.ENVELOPES.push(
@@ -110,5 +111,5 @@
   style.textContent = letterCSS() + FONT_FACE_CSS;
   document.head.append(style);
 
-  window.EXTRA = { PAPERS, FONTS, EFFECTS, EMOJI_CATS, TEMPLATES, letterCSS, FONT_FACE_CSS };
+  window.EXTRA = { VERSION, PAPERS, FONTS, EFFECTS, EMOJI_CATS, TEMPLATES, letterCSS, FONT_FACE_CSS };
 })();
