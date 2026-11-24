@@ -1,41 +1,30 @@
-# 💌 Mektup Gönder
+# Mektup Gönder
 
-Mektubunu yaz, zarfını ve emojilerini seç, e-posta olarak gönder. **Hesap, sunucu ve eşleşme yok**; hiçbir şey saklanmaz (taslak ve emojiler yalnızca kendi telefonunda durur).
+Mektubu yaz, zarfı ve kâğıdı seç, **açılan zarf** olarak mail uygulamanla paylaş. Hesap, sunucu ve otomatik gönderim yok; hiçbir şey saklanmaz.
 
-## 1) Yayınla (GitHub Pages, ücretsiz, ~5 dk)
-1. github.com'da yeni bir depo aç (örn. `mektup`, **Public** olmalı: ücretsiz Pages bunu ister).
-2. Bu klasörün **içindekileri** (index.html, app.js, style.css... hepsini) depoya sürükleyip **Commit changes** de.
-3. Depoda **Settings → Pages → Build and deployment → Source: Deploy from a branch → Branch: main / (root) → Save**.
-4. 1–2 dakika sonra adres hazır: `https://KULLANICI-ADIN.github.io/mektup/`
+## Yayınlama (GitHub Pages)
+1. GitHub'da yeni bir **Public** depo aç.
+2. Bu klasörün **içindeki** her şeyi (fonts klasörü dahil) depoya yükle.
+3. Settings → Pages → Branch: `main`, klasör: `/ (root)` → Save.
+4. Birkaç dakika sonra `https://kullaniciadin.github.io/depo-adi/` açılır.
 
-> Depo herkese açık olur ama içinde senin mektubun yok, sadece uygulama kodu var. Mektuplar hiçbir yere kaydedilmez.
+## Android'e kurma
+Adresi Chrome'da aç, ⋮ menüsünden **"Uygulamayı yükle"** (ya da "Ana ekrana ekle") de.
 
-## 2) Android'e uygulama olarak ekle
-Telefonda **Chrome** ile adresi aç → ⋮ menüsü → **Uygulamayı yükle** (veya **Ana ekrana ekle**). Ana ekranda zarf simgesi çıkar, tam ekran açılır.
+## Göndermek
+Uygulamanın en altında dört biçim var. Telefonda paylaşma menüsü açılır, **Gmail**'i seç; dosya ek olarak eklenir. Alıcı adresi panoya kopyalanır, alıcı kutusuna yapıştır.
 
-## 3) E-posta gönderme: iki yol
-**A) Hemen, ayarsız: "✉️ Mail uygulamamda aç".** Gmail (veya telefondaki mail uygulaması) alıcı, konu ve mektup metniyle açılır; sen **Gönder**'e basarsın. İstersen Gmail'de Gönder düğmesinin yanındaki ⋮ → **Gönderimi zamanla** ile ileri bir tarihe ayarlayabilirsin. Bu yolda zarf ve kâğıt görünümü e-postaya taşınmaz, düz metin gider.
+| Biçim | Ne olur |
+|---|---|
+| 🎬 **GIF** (önerilen) | Zarf açılır, mektup çıkar. Mailde kendiliğinden oynar, her telefonda çalışır. |
+| 🌐 **HTML** | Dokununca (ya da kendiliğinden) açılan, efektli sayfa. Alıcı dosyayı tarayıcıda açar. |
+| 📄 **PDF** | 3 sayfa: kapalı zarf, açık zarf, mektup. PDF kendi başına hareket edemez. |
+| 🖼️ **PNG** | Zarf ve mektup tek resim. |
 
-**B) Uygulama kendisi göndersin: "📨 Gönder".** Güzel görünümlü (HTML) e-posta gider. Tek seferlik ücretsiz kurulum gerekir (ayda 200 e-posta):
-1. emailjs.com'da ücretsiz hesap aç.
-2. **Email Services → Add New Service → Gmail**'i seç ve Google hesabını bağla. Çıkan **Service ID**'yi not al.
-3. **Email Templates → Create New Template**:
-   - **To Email**: `{{to_email}}`
-   - **Subject**: `{{subject}}`
-   - **Content** (HTML düzenleyiciye geçip kaynak kodu aç): `{{{message_html}}}` (üç süslü parantez)
-   - Kaydet; **Template ID**'yi not al.
-4. **Account → General** sayfasından **Public Key**'i kopyala.
-5. Uygulamada sağ üstteki ⚙️'ye bas ve üç değeri yapıştırıp **Kaydet** de.
+Önizlemenin altındaki **▶ Zarf açılışını izle** düğmesi, HTML'in alıcıda nasıl görüneceğini gösterir.
 
-E-posta senin Gmail adresinden gider. Ayarlar yalnızca o telefonun tarayıcısında saklanır.
+## Zamanlı gönderim
+Uygulama zamanlama yapmaz. Gmail'de gönder düğmesinin yanındaki ⋮ → **Gönderimi zamanla** ile mailin gideceği günü seçebilirsin.
 
-## Sınırlar (dürüstçe)
-- Gönderim **hemen** olur; uygulama içinde "şu tarihte gönder" yok (sunucu olmadığı için). Zamanlamak için yol A'daki Gmail "Gönderimi zamanla"yı kullan.
-- Mektupların bir yerde saklanmaz; gönderdikten sonra uygulamada kayıt tutulmaz. Gönderdiklerin Gmail'de "Gönderilmiş" klasöründe durur.
-- Yol B EmailJS'in ücretsiz planına bağlıdır (aylık 200 e-posta, e-posta başına küçük boyut sınırı). Çok uzun mektuplar için yol A daha güvenlidir.
-
-## Önizlemeyi görsel (PNG) ya da PDF olarak gönderme
-- Mektubu yazdıktan sonra **🖼️ PNG olarak gönder** ya da **📄 PDF olarak gönder**'e bas.
-- Telefonda paylaşma menüsü açılır. **Gmail**'i seç: görsel ek olarak eklenir. Alıcı adresi panoya kopyalanır, alıcı kutusuna yapıştır.
-- Bilgisayarda dosya indirilir, mailine ek olarak ekle.
-- Bu yol EmailJS ücretsiz planıyla "📨 Gönder" düğmesinden yapılamaz, çünkü ücretsiz planda ek (attachment) yok.
+## İçerik
+22 zarf, 13 kâğıt, 4 yazı tipi, 24 mühür, 7 açılış efekti (kalp, konfeti, yıldız, çiçek, kelebek, kar), 130'dan fazla emoji ve ayraç, kendi emojini yapma, 10 hazır mektup şablonu, ilham soruları.

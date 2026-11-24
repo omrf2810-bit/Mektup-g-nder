@@ -217,13 +217,24 @@
   };
 
   /* ---------------------------------------------------------------- zarf ve kâğıt */
+  function patternSVG(kind, color) {
+    const c = color;
+    return {
+      dots: `<svg xmlns='http://www.w3.org/2000/svg' width='18' height='18'><circle cx='5' cy='5' r='1.8' fill='${c}' fill-opacity='.4'/><circle cx='14' cy='14' r='1.8' fill='${c}' fill-opacity='.4'/></svg>`,
+      hearts: `<svg xmlns='http://www.w3.org/2000/svg' width='28' height='28'><path d='M14 22C5 15 6 8 10.5 8c2 0 3 1.3 3.5 2.3C14.5 9.3 15.5 8 17.5 8 22 8 23 15 14 22z' fill='${c}' fill-opacity='.3'/></svg>`,
+      stars: `<svg xmlns='http://www.w3.org/2000/svg' width='30' height='30'><path d='M15 5l2.2 6.5 6.8.2-5.4 4.2 1.9 6.6L15 18.6 9.5 22.5l1.9-6.6L6 11.7l6.8-.2z' fill='${c}' fill-opacity='.35'/></svg>`,
+      stripes: `<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14'><path d='M0 14L14 0' stroke='${c}' stroke-opacity='.25' stroke-width='3'/></svg>`,
+      flowers: `<svg xmlns='http://www.w3.org/2000/svg' width='32' height='32'><g fill='${c}' fill-opacity='.3'><circle cx='16' cy='9' r='4'/><circle cx='23' cy='14' r='4'/><circle cx='20' cy='22' r='4'/><circle cx='12' cy='22' r='4'/><circle cx='9' cy='14' r='4'/></g><circle cx='16' cy='16' r='3' fill='${c}' fill-opacity='.45'/></svg>`,
+      waves: `<svg xmlns='http://www.w3.org/2000/svg' width='24' height='12'><path d='M0 6Q6 0 12 6T24 6' fill='none' stroke='${c}' stroke-opacity='.32' stroke-width='1.6'/></svg>`,
+      diamonds: `<svg xmlns='http://www.w3.org/2000/svg' width='20' height='20'><path d='M10 2L18 10L10 18L2 10z' fill='none' stroke='${c}' stroke-opacity='.32' stroke-width='1.4'/></svg>`,
+      snow: `<svg xmlns='http://www.w3.org/2000/svg' width='26' height='26'><path d='M13 5v16M5 13h16M7.3 7.3l11.4 11.4M18.7 7.3L7.3 18.7' stroke='${c}' stroke-opacity='.4' stroke-width='1.4' stroke-linecap='round' fill='none'/></svg>`,
+      clouds: `<svg xmlns='http://www.w3.org/2000/svg' width='40' height='24'><path d='M8 18a5 5 0 0 1 1-9.9A6.5 6.5 0 0 1 21.5 9 4.5 4.5 0 0 1 22 18z' fill='${c}' fill-opacity='.25'/></svg>`,
+      sparks: `<svg xmlns='http://www.w3.org/2000/svg' width='22' height='22'><path d='M11 2L12.6 9.4 20 11 12.6 12.6 11 20 9.4 12.6 2 11 9.4 9.4z' fill='${c}' fill-opacity='.38'/></svg>`
+    }[kind] || null;
+  }
+  U.patternSVG = patternSVG;
   function patternURL(kind, color) {
-    const svg = {
-      dots: `<svg xmlns='http://www.w3.org/2000/svg' width='18' height='18'><circle cx='5' cy='5' r='1.8' fill='${color}' fill-opacity='.4'/><circle cx='14' cy='14' r='1.8' fill='${color}' fill-opacity='.4'/></svg>`,
-      hearts: `<svg xmlns='http://www.w3.org/2000/svg' width='28' height='28'><path d='M14 22C5 15 6 8 10.5 8c2 0 3 1.3 3.5 2.3C14.5 9.3 15.5 8 17.5 8 22 8 23 15 14 22z' fill='${color}' fill-opacity='.3'/></svg>`,
-      stars: `<svg xmlns='http://www.w3.org/2000/svg' width='30' height='30'><path d='M15 5l2.2 6.5 6.8.2-5.4 4.2 1.9 6.6L15 18.6 9.5 22.5l1.9-6.6L6 11.7l6.8-.2z' fill='${color}' fill-opacity='.35'/></svg>`,
-      stripes: `<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14'><path d='M0 14L14 0' stroke='${color}' stroke-opacity='.25' stroke-width='3'/></svg>`
-    }[kind];
+    const svg = patternSVG(kind, color);
     return svg ? `url("data:image/svg+xml,${encodeURIComponent(svg)}")` : 'none';
   }
 
