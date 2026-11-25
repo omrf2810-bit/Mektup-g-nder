@@ -3,7 +3,7 @@
 (function () {
   'use strict';
   const C = window.CONFIG;
-  const VERSION = '202611241945';
+  const VERSION = '202611251915';
 
   /* ---- zarflar: mevcut 9 + yenileri */
   C.ENVELOPES.push(

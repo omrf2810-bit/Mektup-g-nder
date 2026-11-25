@@ -118,17 +118,20 @@ body{font-family:system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;back
 .lt.show{display:block}
 .lt.in{opacity:1;transform:none}
 .again{display:none;border:0;border-radius:999px;background:#c8586c;color:#fff;font:600 15px system-ui,sans-serif;padding:11px 20px;cursor:pointer;box-shadow:0 4px 12px rgba(200,88,108,.35)}
-.reveal .again{display:inline-block}
+.reveal .again,.reveal .prt{display:inline-block}
+.prt{display:none;border:1.5px solid #c8586c;border-radius:999px;background:#fff;color:#c8586c;font:600 15px system-ui,sans-serif;padding:10px 18px;cursor:pointer}
+.acts{display:none;flex-wrap:wrap;gap:10px;justify-content:center}.reveal .acts{display:flex}
 .fx{position:fixed;inset:0;pointer-events:none;overflow:hidden;z-index:9}
 .p{position:absolute;top:-10vh;will-change:transform;animation:fall linear forwards}
 .p.up{top:auto;bottom:-10vh;animation-name:rise}
 .p.c{border-radius:2px}
 @keyframes fall{to{transform:translate3d(var(--dx),118vh,0) rotate(var(--r))}}
 @keyframes rise{to{transform:translate3d(var(--dx),-118vh,0) rotate(var(--r))}}
-@media (prefers-reduced-motion:reduce){.fx{display:none}}`;
+@media (prefers-reduced-motion:reduce){.fx{display:none}}
+@media print{body{background:#fff;display:block;min-height:0}.wrap{width:100%;padding:0}.hint,.scene,.acts,.fx{display:none!important}.lt{display:block!important;opacity:1!important;transform:none!important}}`;
 
   const PAGE_JS = `(function(){
-var wrap=document.getElementById('wrap'),scene=document.getElementById('scene'),hint=document.getElementById('hint'),lt=document.getElementById('lt'),again=document.getElementById('again'),fx=document.getElementById('fx');
+var wrap=document.getElementById('wrap'),scene=document.getElementById('scene'),hint=document.getElementById('hint'),lt=document.getElementById('lt'),again=document.getElementById('again'),prt=document.getElementById('prt'),fx=document.getElementById('fx');
 var EF=window.__EF||{list:[],up:false},opened=false,auto=0,T=[];
 function later(f,ms){T.push(setTimeout(f,ms));}
 function burst(n){
@@ -165,6 +168,7 @@ function reset(){
 }
 scene.addEventListener('click',open);
 again.addEventListener('click',reset);
+prt.addEventListener('click',function(){window.print();});
 auto=setTimeout(open,1700);
 window.__open=open;
 })();`;
@@ -187,7 +191,7 @@ window.__open=open;
 <div class="env"><div class="back">${L.back}</div><div class="pp" style="${pp}"></div><div class="front">${L.front}</div><div class="flap">${L.flap}</div>
 <div class="seal" style="background:${e.accent}">${escHtml(f.seal)}</div>${f.label.trim() ? `<div class="lab" style="font:${labelFont};color:${e.accent}">${escHtml(f.label.trim())}</div>` : ''}</div></button>
 ${lt.outerHTML}
-<button class="again" id="again" type="button">↻ Tekrar izle</button>
+<div class="acts"><button class="again" id="again" type="button">↻ Tekrar izle</button><button class="prt" id="prt" type="button">🖨️ PDF / Yazdır</button></div>
 </main><div class="fx" id="fx" aria-hidden="true"></div>
 <script>window.__EF=${JSON.stringify({ list: ef.list, up: ef.id === 'kelebek' })};${PAGE_JS}</script></body></html>`;
   }

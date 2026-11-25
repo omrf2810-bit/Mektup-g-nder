@@ -1,5 +1,5 @@
 /* Çevrimdışı çalışma: önce ağ (her zaman güncel sürüm), ağ yoksa önbellek. Sürüm ve dosya listesi derlemede doldurulur. */
-const V = 'mektup-202611241945';
+const V = 'mektup-202611251915';
 const FILES = ["./","app.js","apple-touch-icon.png","config.js","export.js","extra.js","fonts/caveat-latin-500-normal.woff2","fonts/caveat-latin-700-normal.woff2","fonts/caveat-latin-ext-500-normal.woff2","fonts/caveat-latin-ext-700-normal.woff2","fonts/playfair-display-latin-600-normal.woff2","fonts/playfair-display-latin-700-normal.woff2","fonts/playfair-display-latin-ext-600-normal.woff2","fonts/playfair-display-latin-ext-700-normal.woff2","gifenc.js","gmail.js","gonder.css","html2canvas.min.js","icon-192.png","icon-512.png","icon-maskable-512.png","icon.svg","index.html","manifest.webmanifest","style.css","theme.js","ui.js"];
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(V).then((c) => c.addAll(FILES.map((f) => new Request(f, { cache: 'reload' })))).then(() => self.skipWaiting()));

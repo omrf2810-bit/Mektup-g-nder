@@ -61,33 +61,33 @@
   const rnd = () => Math.random().toString(36).slice(2, 12);
   const escHtml = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-  /* opts: { to, subject, text, html, att: { name, type, bytes(Uint8Array), inline } } */
+  /* opts: { to, subject, text, html, atts: [{ name, type, bytes(Uint8Array), inline }] }
+     inline olanlar mailin içinde görünür (Content-ID: <mektup>, <mektup2>…), diğerleri ek olur. */
+  const leaf = (headers, body) => ({ headers, body });
+  const multi = (subtype, parts, extra) => {
+    const bnd = subtype + '_' + rnd();
+    return { headers: [`Content-Type: multipart/${subtype}; ${extra ? extra + '; ' : ''}boundary="${bnd}"`], body: parts.map((p) => `--${bnd}\r\n${p.headers.join('\r\n')}\r\n\r\n${p.body}`).join('\r\n') + `\r\n--${bnd}--` };
+  };
   function buildMime(o) {
-    const b = { alt: 'alt_' + rnd(), root: 'root_' + rnd() };
-    const alt = [
-      `--${b.alt}`, 'Content-Type: text/plain; charset=UTF-8', 'Content-Transfer-Encoding: base64', '', bodyB64(o.text || ''),
-      `--${b.alt}`, 'Content-Type: text/html; charset=UTF-8', 'Content-Transfer-Encoding: base64', '', bodyB64(o.html || ''),
-      `--${b.alt}--`
-    ].join('\r\n');
+    const atts = o.atts || (o.att ? [o.att] : []);
+    const alt = multi('alternative', [
+      leaf(['Content-Type: text/plain; charset=UTF-8', 'Content-Transfer-Encoding: base64'], bodyB64(o.text || '')),
+      leaf(['Content-Type: text/html; charset=UTF-8', 'Content-Transfer-Encoding: base64'], bodyB64(o.html || ''))
+    ]);
+    const safe = (n) => n.replace(/[^\x20-\x7e]/g, '_').replace(/"/g, '');
+    let cid = 0;
+    const part = (a) => {
+      const name = safe(a.name);
+      const id = a.inline ? (cid++ === 0 ? 'mektup' : 'mektup' + cid) : null;
+      return { id, p: leaf([`Content-Type: ${a.type}; name="${name}"`, 'Content-Transfer-Encoding: base64', a.inline ? `Content-Disposition: inline; filename="${name}"` : `Content-Disposition: attachment; filename="${name}"`, a.inline ? `Content-ID: <${id}>` : `X-Attachment-Id: f_${rnd()}`], wrap(b64(a.bytes))) };
+    };
+    const inl = atts.filter((a) => a.inline).map(part), att = atts.filter((a) => !a.inline).map(part);
+    const rel = inl.length ? multi('related', [alt, ...inl.map((x) => x.p)], 'type="multipart/alternative"') : alt;
+    const root = att.length ? multi('mixed', [rel, ...att.map((x) => x.p)]) : rel;
     const head = ['MIME-Version: 1.0'];
     if (o.to) head.push('To: ' + o.to);
-    head.push('Subject: ' + encodeHeader(o.subject || ''));
-    const att = o.att;
-    let body;
-    if (!att) {
-      head.push(`Content-Type: multipart/alternative; boundary="${b.alt}"`);
-      body = alt;
-    } else {
-      head.push(att.inline ? `Content-Type: multipart/related; type="multipart/alternative"; boundary="${b.root}"` : `Content-Type: multipart/mixed; boundary="${b.root}"`);
-      const name = att.name.replace(/[^\x20-\x7e]/g, '_').replace(/"/g, '');
-      const part = [
-        `--${b.root}`, `Content-Type: ${att.type}; name="${name}"`, 'Content-Transfer-Encoding: base64',
-        att.inline ? `Content-Disposition: inline; filename="${name}"` : `Content-Disposition: attachment; filename="${name}"`,
-        att.inline ? 'Content-ID: <mektup>' : 'X-Attachment-Id: mektup', '', wrap(b64(att.bytes)), `--${b.root}--`
-      ].join('\r\n');
-      body = [`--${b.root}`, `Content-Type: multipart/alternative; boundary="${b.alt}"`, '', alt, part].join('\r\n');
-    }
-    return head.join('\r\n') + '\r\n\r\n' + body + '\r\n';
+    head.push('Subject: ' + encodeHeader(o.subject || ''), ...root.headers);
+    return head.join('\r\n') + '\r\n\r\n' + root.body + '\r\n';
   }
 
   /* ---- Gmail API: taslak oluştur */

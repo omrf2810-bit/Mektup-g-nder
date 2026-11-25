@@ -39,3 +39,11 @@ Uygulama zamanlama yapmaz. Gmail'de gönder düğmesinin yanındaki ⋮ → **G�
 
 ## İçerik
 22 zarf, 13 kâğıt, 4 yazı tipi, 24 mühür, 7 açılış efekti (kalp, konfeti, yıldız, çiçek, kelebek, kar), 130'dan fazla emoji ve ayraç, kendi emojini yapma, 10 hazır mektup şablonu, ilham soruları, istediğin tarihi yazabilme.
+
+
+## Yeni (son sürüm)
+- **Mektuplarım**: yazdığın mektupları adıyla bu telefonda kaydet, sonra aç / güncelle / sil. (Veriler yalnızca bu tarayıcıda durur; tarayıcı verisini silersen gider.)
+- **Gmail taslağında birden çok dosya**: Gmail taslağı modunda "Taslağa ayrıca ekle" düğmeleriyle GIF'in yanına PDF / HTML / PNG de eklenir.
+- **HTML dosyasında "🖨️ PDF / Yazdır"**: mektup açılınca alıcı kendi telefonundan PDF olarak kaydedebilir.
+- Google girişinde "Erişim engellendi / Hata 403" görürsen: Google Cloud → Google Auth Platform → Hedef kitle → Test kullanıcıları'na kendi Gmail adresini ekle.
+- GitHub'a **tüm dosyaları** (yeni olanlar dahil) yükle; eksik kalırsa eski sürüm görünür. En altta "Sürüm" etiketinden kontrol edebilirsin.
